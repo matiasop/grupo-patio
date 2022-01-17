@@ -19,6 +19,7 @@ from pathlib import Path
 import cv2
 import torch
 import torch.backends.cudnn as cudnn
+from collections import namedtuple
 
 from yolov5.models.experimental import attempt_load
 from yolov5.utils.downloads import attempt_download
@@ -115,6 +116,7 @@ def detect(opt):
     dt, seen = [0.0, 0.0, 0.0, 0.0], 0
     # Agregado
     dir_linea = {}
+    LineData =  namedtuple('LineData', ['top_or_bot', 'frame'])
     sube_linea = 0
     baja_linea = 0
     total_sube = 0
@@ -160,8 +162,8 @@ def detect(opt):
 
             h = im0.shape[0]
             w = im0.shape[1]
-            lx1, ly1 = int(w * 0.73), int(h * 0.16)
-            lx2, ly2 = w, int(h * 0.16)
+            lx1, ly1 = int(w * 0.03), int(h * 0.23)
+            lx2, ly2 = w, int(h * 0.10)
 
             annotator.line(lx1, ly1, lx2, ly2, count=total_sube)
             if det is not None and len(det):
@@ -195,10 +197,11 @@ def detect(opt):
 
                         c = int(cls)  # integer class
 
-                        # changes JP
+                        # Find middle position of object
                         p_x = (output[0] + output[2]) / 2
                         p_y = (output[1] + output[3]) / 2
-                        # p_x, p_y = output[2:4]
+
+                        # Check if object crossed the line
                         v1 = (lx2 - lx1, ly2 - ly1)  # Vector 1 (line)
                         v2 = (lx2 - p_x, ly2 - p_y)  # Vector 2 (from point)
                         xp = v1[0] * v2[1] - v1[1] * v2[0]  # Cross product
@@ -210,21 +213,21 @@ def detect(opt):
                         else:
                             top_or_bot = 'ON'
 
-                        if id in dir_linea.keys():  # if id is in dict
-                            if dir_linea[id] == 'BOT' and top_or_bot == 'TOP':
-                                sube_linea += 1
-                            elif dir_linea[id] == 'TOP' and top_or_bot == 'BOT':
-                                baja_linea += 1
-                        dir_linea[id] = top_or_bot
+                        if id in dir_linea:  # if id is in dict
+                            # Tienen que pasar al menos n frames para que se considere que el objeto cambio de lado
+                            if frame_idx - dir_linea[id].frame > 5: 
+                                if dir_linea[id].top_or_bot == 'BOT' and top_or_bot == 'TOP':
+                                    sube_linea += 1
+                                elif dir_linea[id].top_or_bot == 'TOP' and top_or_bot == 'BOT':
+                                    baja_linea += 1
+                                dir_linea[id] = LineData(top_or_bot, frame_idx)
+                        else:
+                            dir_linea[id] = LineData(top_or_bot, frame_idx)
 
                         total_sube = sube_linea - baja_linea
 
                         label = f'{id} {names[c]} {conf:.2f} {top_or_bot}'
                         annotator.box_label(bboxes, label, color=colors(c, True))
-
-
-
-
 
 
                         if save_txt:
@@ -238,7 +241,8 @@ def detect(opt):
                                 f.write(('%g ' * 10 + '\n') % (frame_idx + 1, id, bbox_left,  # MOT format
                                                                bbox_top, bbox_w, bbox_h, -1, -1, -1, -1))
 
-                LOGGER.info(f'{s}Done. YOLO:({t3 - t2:.3f}s), DeepSort:({t5 - t4:.3f}s), total_suben_linea: {total_sube}')
+                # LOGGER.info(f'{s}Done. YOLO:({t3 - t2:.3f}s), DeepSort:({t5 - t4:.3f}s), total_suben_linea: {total_sube}')
+                LOGGER.info(f'sube: {sube_linea}, baja: {baja_linea}, dir_linea: {dir_linea}')
                 # Write output to file
                 with open('output.csv', 'w') as file:
                     file.write(f'{sube_linea},{baja_linea}\n')
