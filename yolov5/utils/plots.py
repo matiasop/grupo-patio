@@ -111,6 +111,14 @@ class Annotator:
         # Add rectangle to image (PIL-only)
         self.draw.rectangle(xy, fill, outline, width)
 
+    def line(self, x1, y1, x2, y2, color=(0, 255, 0), line_thickness=2, fontScale = 1, count=0):
+        #shape = [(x1, y1), (x2, y2)]
+        #self.draw.line(shape, fill="none", width=0)
+        cv2.line(self.im, (x1, y1), (x2, y2), color, thickness=line_thickness)
+        txt_orig = (x1, y1 - 20)
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        cv2.putText(self.im, str(count), txt_orig, font, fontScale, color, line_thickness, cv2.LINE_AA)
+
     def text(self, xy, text, txt_color=(255, 255, 255)):
         # Add text to image (PIL-only)
         w, h = self.font.getsize(text)  # text width, height
