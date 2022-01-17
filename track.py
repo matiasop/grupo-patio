@@ -241,7 +241,7 @@ def detect(opt):
                 LOGGER.info(f'{s}Done. YOLO:({t3 - t2:.3f}s), DeepSort:({t5 - t4:.3f}s), total_suben_linea: {total_sube}')
                 # Write output to file
                 with open('output.csv', 'w') as file:
-                    file.write(f'{total_sube}\n')
+                    file.write(f'{sube_linea},{baja_linea}\n')
 
             else:
                 deepsort.increment_ages()
