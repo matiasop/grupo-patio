@@ -1,4 +1,6 @@
 .vscode/
 
+yolov5.pt
+yolov5m.pt
 output.csv
 runs/
