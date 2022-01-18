@@ -10,6 +10,7 @@ os.environ["NUMEXPR_NUM_THREADS"] = "1"
 import sys
 sys.path.insert(0, './yolov5')
 
+import json
 import argparse
 import os
 import platform
@@ -34,7 +35,7 @@ from deep_sort.deep_sort import DeepSort
 
 print(f"Setup complete. Using torch {torch.__version__} ({torch.cuda.get_device_properties(0).name if torch.cuda.is_available() else 'CPU'})")
 
-# sys.argv = ['track.py', '--source', 'test3.mp4', '--yolo_model', './crowdhuman_yolov5m.pt', '--classes', '0', '--show-vid', "--conf-thres", "0.5"]
+# sys.argv = ['track.py', '--source', 'test4.mp4', '--lines-src', 'test4.json', '--classes', '0', '2', '--show-vid', "--conf-thres", "0.5"]
 
 
 FILE = Path(__file__).resolve()
@@ -45,11 +46,17 @@ ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
 
 def detect(opt):
-    out, source, yolo_model, deep_sort_model, show_vid, save_vid, save_txt, imgsz, evaluate, half, project, name, distance,\
-    exist_ok= opt.output, opt.source, opt.yolo_model, opt.deep_sort_model, opt.show_vid, opt.save_vid, \
+    out, source, lines_src, yolo_model, deep_sort_model, show_vid, save_vid, save_txt, imgsz, evaluate, half, project, name, distance,\
+    exist_ok= opt.output, opt.source, opt.lines_src, opt.yolo_model, opt.deep_sort_model, opt.show_vid, opt.save_vid, \
         opt.save_txt, opt.imgsz, opt.evaluate, opt.half, opt.project, opt.name, opt.distance, opt.exist_ok
     webcam = source == '0' or source.startswith(
         'rtsp') or source.startswith('http') or source.endswith('.txt')
+
+    # add lines
+    lines = []
+    with open(lines_src) as json_file:
+        lines = json.load(json_file)
+
 
     # initialize deepsort
     cfg = get_config()
@@ -120,14 +127,35 @@ def detect(opt):
     # - El frame en que se revisó por ultima vez al objeto
     # - Su clase (auto o persona)
     objects_positions = {}
-    LineData =  namedtuple('LineData', ['top_or_bot', 'frame'])
-    # Diccionario con la cantidad de personas (clase 0) y autos (clase 2) que han subido y bajado
-    data_dict = {0: {'sube': 0, 'baja': 0}, 2: {'sube': 0, 'baja': 0}}
-    total_personas_suben = 0
-    total_autos_suben = 0
+    LineData =  namedtuple('LineData', ['inside_area', 'frame'])
+    # Diccionario con la cantidad de personas (clase 0) y autos (clase 2) que han entrado y salido al area
+    data_dict = {0: {'entra': 0, 'sale': 0}, 2: {'entra': 0, 'sale': 0}}
+    total_personas_entran = 0
+    total_autos_entran = 0
     FRAMES_TO_SKIP = 5
     # ---------------------
     for frame_idx, (path, img, im0s, vid_cap, s) in enumerate(dataset):
+        # ---------------------
+        # draw lines to pass
+        if "h" not in locals():
+            h = im0s.shape[0]
+            w = im0s.shape[1]
+            line_points = []
+            for person_line in lines["person"]:
+                lx1 = int(w * person_line["x1"])
+                ly1 = int(h * person_line["y1"])
+                lx2 = int(w * person_line["x2"])
+                ly2 = int(h * person_line["y2"])
+                line_dict = {
+                    "x1": lx1,
+                    "y1": ly1,
+                    "x2": lx2,
+                    "y2": ly2,
+                    "place": person_line["place"]
+                }
+                line_points.append(line_dict)
+        # ---------------------
+
         t1 = time_sync()
         img = torch.from_numpy(img).to(device)
         img = img.half() if half else img.float()  # uint8 to fp16/32
@@ -162,16 +190,10 @@ def detect(opt):
 
             annotator = Annotator(im0, line_width=2, pil=not ascii)
 
-            # draw line to pass
-            # x1, y1 = 1500, 241
-            # x2, y2 = 2234, 197
+            # draw lines
+            for line in line_points:
+                annotator.line(line["x1"], line["y1"], line["x2"], line["y2"], count=total_personas_entran)
 
-            h = im0.shape[0]
-            w = im0.shape[1]
-            lx1, ly1 = int(w * 0.03), int(h * 0.23)
-            lx2, ly2 = w, int(h * 0.10)
-
-            annotator.line(lx1, ly1, lx2, ly2, count=total_personas_suben)
             if det is not None and len(det):
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_coords(
@@ -210,33 +232,42 @@ def detect(opt):
                         # Draw object center point
                         annotator.circle(int(p_x), int(p_y))
 
-                        # Check if object crossed the line
-                        v1 = (lx2 - lx1, ly2 - ly1)  # Vector 1 (line)
-                        v2 = (lx2 - p_x, ly2 - p_y)  # Vector 2 (from point)
-                        xp = v1[0] * v2[1] - v1[1] * v2[0]  # Cross product
-                        top_or_bot = ''
-                        if xp > 0:
-                            top_or_bot = 'TOP'
-                        elif xp < 0:
-                            top_or_bot = 'BOT'
-                        else:
-                            top_or_bot = 'ON'
+                        # Check if object crossed the lines
+                        inside_area = True
+                        for line in line_points:
+                            lx1 = line["x1"]
+                            lx2 = line["x2"]
+                            ly1 = line["y1"]
+                            ly2 = line["y2"]
+
+                            v1 = (lx2 - lx1, ly2 - ly1)  # Vector 1 (line)
+                            v2 = (lx2 - p_x, ly2 - p_y)  # Vector 2 (from point)
+                            xp = v1[0] * v2[1] - v1[1] * v2[0]  # Cross product
+
+                            top_or_bot = ''
+                            if xp > 0:
+                                top_or_bot = 'TOP'
+                            elif xp < 0:
+                                top_or_bot = 'BOT'
+                            if top_or_bot != line["place"]: # If it is outside the area, it stops evaluating other lines
+                                inside_area = False
+                                break
 
                         if id in objects_positions:  # if id is in dict
                             # Tienen que pasar al menos n frames para que se considere que el objeto cambio de lado
                             if frame_idx - objects_positions[id].frame > FRAMES_TO_SKIP: 
-                                if objects_positions[id].top_or_bot == 'BOT' and top_or_bot == 'TOP':
-                                    data_dict[cls]['sube'] += 1
-                                    # sube_linea += 1
-                                elif objects_positions[id].top_or_bot == 'TOP' and top_or_bot == 'BOT':
-                                    data_dict[cls]['baja'] += 1
-                                    # baja_linea += 1
-                                objects_positions[id] = LineData(top_or_bot, frame_idx)
+                                if objects_positions[id].inside_area is False and inside_area is True:
+                                    data_dict[cls]['entra'] += 1
+                                    # entra_linea += 1
+                                elif objects_positions[id].inside_area is True and inside_area is False:
+                                    data_dict[cls]['sale'] += 1
+                                    # sale_linea += 1
+                                objects_positions[id] = LineData(inside_area, frame_idx)
                         else:
-                            objects_positions[id] = LineData(top_or_bot, frame_idx)
+                            objects_positions[id] = LineData(inside_area, frame_idx)
 
-                        total_personas_suben = data_dict[0]['sube'] - data_dict[0]['baja']
-                        total_autos_suben = data_dict[2]['sube'] - data_dict[2]['baja']
+                        total_personas_entran = data_dict[0]['entra'] - data_dict[0]['sale']
+                        total_autos_entran = data_dict[2]['entra'] - data_dict[2]['sale']
 
                         label = f'{id} {names[c]} {conf:.2f} {top_or_bot}'
                         annotator.box_label(bboxes, label, color=colors(c, True))
@@ -252,12 +283,12 @@ def detect(opt):
                                 f.write(('%g ' * 10 + '\n') % (frame_idx + 1, id, bbox_left,  # MOT format
                                                                bbox_top, bbox_w, bbox_h, -1, -1, -1, -1))
 
-                LOGGER.info(f'{s}Done. YOLO:({t3 - t2:.3f}s), DeepSort:({t5 - t4:.3f}s), total_personas_suben: {total_personas_suben}, total_autos_suben: {total_autos_suben}')
-                # LOGGER.info(f'sube: {sube_linea}, baja: {baja_linea}, objects_positions: {objects_positions}')
+                LOGGER.info(f'{s}Done. YOLO:({t3 - t2:.3f}s), DeepSort:({t5 - t4:.3f}s), total_personas_entran: {total_personas_entran}, total_autos_entran: {total_autos_entran}\n')
+                # LOGGER.info(f'entra: {entra_linea}, sale: {sale_linea}, objects_positions: {objects_positions}')
                 # Write output to file
                 with open('output.csv', 'w') as file:
-                    file.write(f"{data_dict[0]['sube']},{data_dict[0]['baja']}\n")
-                    file.write(f"{data_dict[2]['sube']},{data_dict[2]['baja']}\n")
+                    file.write(f"{data_dict[0]['entra']},{data_dict[0]['sale']}\n")
+                    file.write(f"{data_dict[2]['entra']},{data_dict[2]['sale']}\n")
 
             else:
                 deepsort.increment_ages()
@@ -305,6 +336,7 @@ if __name__ == '__main__':
     parser.add_argument('--yolo_model', nargs='+', type=str, default='yolov5m.pt', help='model.pt path(s)')
     parser.add_argument('--deep_sort_model', type=str, default='osnet_x0_25')
     parser.add_argument('--source', type=str, default='0', help='source')  # file/folder, 0 for webcam
+    parser.add_argument('--lines-src', type=str, default=None, help='lines JSON source file')
     parser.add_argument('--output', type=str, default='inference/output', help='output folder')  # output folder
     parser.add_argument('--imgsz', '--img', '--img-size', nargs='+', type=int, default=[640], help='inference size h,w')
     parser.add_argument('--conf-thres', type=float, default=0.3, help='object confidence threshold')
