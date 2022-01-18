@@ -50,6 +50,35 @@ def detect(opt):
         opt.save_txt, opt.imgsz, opt.evaluate, opt.half, opt.project, opt.name, opt.distance, opt.exist_ok
     webcam = source == '0' or source.startswith(
         'rtsp') or source.startswith('http') or source.endswith('.txt')
+    
+    # ------------- Variables ---------------
+    # Diccionario que para cada objeto contiene:
+    # - Su posición relativa con respecto a la linea. True sí está dentro, False, si está fuera
+    # - El frame en que se revisó por ultima vez al objeto
+    objects_positions = {}
+    LineData =  namedtuple('LineData', ['top_or_bot', 'frame'])
+    obj_pos = {}    # {obj_id: {line_id: (object_is_in, frame)}}
+    ObjStatus =  namedtuple('ObjStatus', ['object_is_in', 'frame'])
+    # Diccionario con la cantidad de personas (clase 0) y autos (clase 2) que han subido y bajado
+    data_dict = {0: {'sube': 0, 'baja': 0}, 2: {'sube': 0, 'baja': 0}}
+    stats = {0: {'IN': 0, 'OUT': 0}, 2: {'IN': 0, 'OUT': 0}}
+    # Lines to be drawn 
+    Line = namedtuple('Line', ['lx1', 'ly1', 'lx2', 'ly2', 'classes'])
+    lines_dict = {
+        'test4.mp4': [
+            Line(lx1=47, ly1=248, lx2=1920, ly2=108, classes=[0, 2]),
+        ],
+        'test5.mp4': [
+            Line(lx1=100, ly1=200, lx2=1920, ly2=200, classes=[2]),
+            Line(lx1=1700, ly1= 1080, lx2=1920, ly2=600, classes=[0]),
+        ]
+    }
+
+    video_filename = source.replace("\\", "/").split("/")[-1]
+
+    stats  = {cls: {line_id: {'IN': 0, 'OUT': 0} for line_id, _ in enumerate(lines_dict[video_filename])} for cls in [0, 2]}
+    FRAMES_TO_SKIP = 5
+    # ---------------------
 
     # initialize deepsort
     cfg = get_config()
@@ -114,19 +143,7 @@ def detect(opt):
     if pt and device.type != 'cpu':
         model(torch.zeros(1, 3, *imgsz).to(device).type_as(next(model.model.parameters())))  # warmup
     dt, seen = [0.0, 0.0, 0.0, 0.0], 0
-    # ---------------------
-    # Diccionario que para cada objeto contiene:
-    # - Su posición relativa con respecto a la linea (TOP o BOT)
-    # - El frame en que se revisó por ultima vez al objeto
-    # - Su clase (auto o persona)
-    objects_positions = {}
-    LineData =  namedtuple('LineData', ['top_or_bot', 'frame'])
-    # Diccionario con la cantidad de personas (clase 0) y autos (clase 2) que han subido y bajado
-    data_dict = {0: {'sube': 0, 'baja': 0}, 2: {'sube': 0, 'baja': 0}}
-    total_personas_suben = 0
-    total_autos_suben = 0
-    FRAMES_TO_SKIP = 5
-    # ---------------------
+
     for frame_idx, (path, img, im0s, vid_cap, s) in enumerate(dataset):
         t1 = time_sync()
         img = torch.from_numpy(img).to(device)
@@ -162,16 +179,10 @@ def detect(opt):
 
             annotator = Annotator(im0, line_width=2, pil=not ascii)
 
-            # draw line to pass
-            # x1, y1 = 1500, 241
-            # x2, y2 = 2234, 197
+            # Draw lines
+            for line in lines_dict[video_filename]:
+                annotator.line(line.lx1, line.ly1, line.lx2, line.ly2, count='')
 
-            h = im0.shape[0]
-            w = im0.shape[1]
-            lx1, ly1 = int(w * 0.03), int(h * 0.23)
-            lx2, ly2 = w, int(h * 0.10)
-
-            annotator.line(lx1, ly1, lx2, ly2, count=total_personas_suben)
             if det is not None and len(det):
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_coords(
@@ -210,35 +221,65 @@ def detect(opt):
                         # Draw object center point
                         annotator.circle(int(p_x), int(p_y))
 
-                        # Check if object crossed the line
-                        v1 = (lx2 - lx1, ly2 - ly1)  # Vector 1 (line)
-                        v2 = (lx2 - p_x, ly2 - p_y)  # Vector 2 (from point)
-                        xp = v1[0] * v2[1] - v1[1] * v2[0]  # Cross product
-                        top_or_bot = ''
-                        if xp > 0:
-                            top_or_bot = 'TOP'
-                        elif xp < 0:
-                            top_or_bot = 'BOT'
+                        # v1 = (lx2 - lx1, ly2 - ly1)  # Vector 1 (line)
+                        # v2 = (lx2 - p_x, ly2 - p_y)  # Vector 2 (from point)
+                        # xp = v1[0] * v2[1] - v1[1] * v2[0]  # Cross product
+                        # top_or_bot = ''
+                        # if xp > 0:
+                        #     top_or_bot = 'TOP'
+                        # elif xp < 0:
+                        #     top_or_bot = 'BOT'
+                        # else:
+                        #     top_or_bot = 'ON'
+
+
+                        def check_lines_crossed(lines_dict, video_filename, p_x, p_y, cls):
+                            # Check if the object crossed a line
+                            current_frame_obj_is_in = {}
+                            for line_id, line in enumerate(lines_dict[video_filename]):
+                                # check if object class corresponds with this line class
+                                if cls in line.classes:
+                                    lx1, ly1, lx2, ly2 = line.lx1, line.ly1, line.lx2, line.ly2
+                                    # Check if object crossed the line
+                                    v1 = (lx2 - lx1, ly2 - ly1)  # Vector 1 (line)
+                                    v2 = (lx2 - p_x, ly2 - p_y)  # Vector 2 (from point)
+                                    xp = v1[0] * v2[1] - v1[1] * v2[0]  # Cross product
+                                    # IN if xp < 0 else OUT
+                                    object_is_in = xp < 0
+                                    # obj_pos[id][line_id].object_is_in = object_is_in
+                                    current_frame_obj_is_in[line_id] = object_is_in
+
+                            return current_frame_obj_is_in
+                                
+
+                        # {line_id: object_is_in}
+                        current_frame_obj_is_in = check_lines_crossed(lines_dict, video_filename, p_x, p_y, cls)
+
+                        if id in obj_pos:
+                            # {obj_id: {line_id: (object_is_in, frame)}}
+                            for line_id in obj_pos[id]:
+                                # Tienen que pasar al menos n frames para que se considere que el objeto cambio de lado
+                                if frame_idx - obj_pos[id][line_id].frame > FRAMES_TO_SKIP:
+                                    if obj_pos[id][line_id].object_is_in == True and current_frame_obj_is_in[line_id] == False:
+                                        stats[cls][line_id]['OUT'] += 1
+                                    elif obj_pos[id][line_id].object_is_in == False and current_frame_obj_is_in[line_id] == True:
+                                        stats[cls][line_id]['IN'] += 1
+                                    obj_pos[id][line_id] = ObjStatus(current_frame_obj_is_in[line_id], frame_idx)
                         else:
-                            top_or_bot = 'ON'
+                            obj_pos[id] = {line_id: ObjStatus(current_frame_obj_is_in[line_id], frame_idx) for line_id, line in enumerate(lines_dict[video_filename]) if cls in line.classes}
 
-                        if id in objects_positions:  # if id is in dict
-                            # Tienen que pasar al menos n frames para que se considere que el objeto cambio de lado
-                            if frame_idx - objects_positions[id].frame > FRAMES_TO_SKIP: 
-                                if objects_positions[id].top_or_bot == 'BOT' and top_or_bot == 'TOP':
-                                    data_dict[cls]['sube'] += 1
-                                    # sube_linea += 1
-                                elif objects_positions[id].top_or_bot == 'TOP' and top_or_bot == 'BOT':
-                                    data_dict[cls]['baja'] += 1
-                                    # baja_linea += 1
-                                objects_positions[id] = LineData(top_or_bot, frame_idx)
-                        else:
-                            objects_positions[id] = LineData(top_or_bot, frame_idx)
+                        # if id in objects_positions:  # if id is in dict
+                        #     # Tienen que pasar al menos n frames para que se considere que el objeto cambio de lado
+                        #     if frame_idx - objects_positions[id].frame > FRAMES_TO_SKIP: 
+                        #         if objects_positions[id].top_or_bot == 'BOT' and top_or_bot == 'TOP':
+                        #             data_dict[cls]['sube'] += 1
+                        #         elif objects_positions[id].top_or_bot == 'TOP' and top_or_bot == 'BOT':
+                        #             data_dict[cls]['baja'] += 1
+                        #         objects_positions[id] = LineData(top_or_bot, frame_idx)
+                        # else:
+                        #     objects_positions[id] = LineData(top_or_bot, frame_idx)
 
-                        total_personas_suben = data_dict[0]['sube'] - data_dict[0]['baja']
-                        total_autos_suben = data_dict[2]['sube'] - data_dict[2]['baja']
-
-                        label = f'{id} {names[c]} {conf:.2f} {top_or_bot}'
+                        label = f'{id} {names[c]} {conf:.2f}'
                         annotator.box_label(bboxes, label, color=colors(c, True))
 
                         if save_txt:
@@ -252,12 +293,13 @@ def detect(opt):
                                 f.write(('%g ' * 10 + '\n') % (frame_idx + 1, id, bbox_left,  # MOT format
                                                                bbox_top, bbox_w, bbox_h, -1, -1, -1, -1))
 
-                LOGGER.info(f'{s}Done. YOLO:({t3 - t2:.3f}s), DeepSort:({t5 - t4:.3f}s), total_personas_suben: {total_personas_suben}, total_autos_suben: {total_autos_suben}')
-                # LOGGER.info(f'sube: {sube_linea}, baja: {baja_linea}, objects_positions: {objects_positions}')
+                LOGGER.info(f'{s}Done. YOLO:({t3 - t2:.3f}s), DeepSort:({t5 - t4:.3f}s)')
+                print(stats)
                 # Write output to file
-                with open('output.csv', 'w') as file:
-                    file.write(f"{data_dict[0]['sube']},{data_dict[0]['baja']}\n")
-                    file.write(f"{data_dict[2]['sube']},{data_dict[2]['baja']}\n")
+                with open('../frontend_Moris/frontend/output.csv', 'w') as file:
+                    file.write(f"{frame_idx}\n")
+                    # file.write(f"{data_dict[0]['sube']},{data_dict[0]['baja']}\n")
+                    # file.write(f"{data_dict[2]['sube']},{data_dict[2]['baja']}\n")
 
             else:
                 deepsort.increment_ages()
