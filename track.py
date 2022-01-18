@@ -35,7 +35,7 @@ from deep_sort.deep_sort import DeepSort
 
 print(f"Setup complete. Using torch {torch.__version__} ({torch.cuda.get_device_properties(0).name if torch.cuda.is_available() else 'CPU'})")
 
-# sys.argv = ['track.py', '--source', 'test4.mp4', '--lines-src', 'test4.json', '--classes', '0', '2', '--show-vid', "--conf-thres", "0.5"]
+# sys.argv = ['track.py', '--source', 'test4.mp4', '--lines-src', 'test4-v2.json', '--classes', '0', '2', '--show-vid', "--conf-thres", "0.5"]
 
 
 FILE = Path(__file__).resolve()
@@ -56,6 +56,7 @@ def detect(opt):
     lines = []
     with open(lines_src) as json_file:
         lines = json.load(json_file)
+        inside_enters = lines.pop("inside_enters")
 
 
     # initialize deepsort
@@ -276,9 +277,11 @@ def detect(opt):
                                 objects_positions[id] = LineData(inside_area, frame_idx)
                         else:
                             objects_positions[id] = LineData(inside_area, frame_idx)
-
-                        total_personas_entran = data_dict[0]['entra'] - data_dict[0]['sale']
-                        total_autos_entran = data_dict[2]['entra'] - data_dict[2]['sale']
+                        factor_enters = 1
+                        if not inside_enters:
+                            factor_enters = -1
+                        total_personas_entran = factor_enters * (data_dict[0]['entra'] - data_dict[0]['sale'])
+                        total_autos_entran = factor_enters * (data_dict[2]['entra'] - data_dict[2]['sale'])
 
                         label = f'{id} {names[c]} {conf:.2f} {top_or_bot}'
                         annotator.box_label(bboxes, label, color=colors(c, True))

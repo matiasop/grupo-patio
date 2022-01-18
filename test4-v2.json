@@ -30,5 +30,6 @@
       "y2": 0.10,
       "place": "TOP"
     }
-  ]
+  ],
+  "inside_enters": false
 }
