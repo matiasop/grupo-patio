@@ -56,7 +56,9 @@ def detect(opt):
     lines = []
     with open(lines_src) as json_file:
         lines = json.load(json_file)
-        inside_enters = lines.pop("inside_enters")
+        inside_enters = True
+        if "inside_enters" in lines:
+            inside_enters = lines.pop("inside_enters")
 
 
     # initialize deepsort

@@ -23,5 +23,6 @@
             "y2": 0.12,
             "place": "BOT"
         }
-    ]
+    ],
+    "inside_enters": true
 }
