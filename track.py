@@ -207,6 +207,9 @@ def detect(opt):
                         p_x = (output[0] + output[2]) / 2
                         p_y = (output[1] + output[3]) / 2
 
+                        # Draw object center point
+                        annotator.circle(int(p_x), int(p_y))
+
                         # Check if object crossed the line
                         v1 = (lx2 - lx1, ly2 - ly1)  # Vector 1 (line)
                         v2 = (lx2 - p_x, ly2 - p_y)  # Vector 2 (from point)

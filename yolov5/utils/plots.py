@@ -119,6 +119,9 @@ class Annotator:
         font = cv2.FONT_HERSHEY_SIMPLEX
         cv2.putText(self.im, str(count), txt_orig, font, fontScale, color, line_thickness, cv2.LINE_AA)
 
+    def circle(self, x, y):
+        cv2.circle(self.im, (x,y), radius=1, color=(255, 98, 0), thickness=10)
+
     def text(self, xy, text, txt_color=(255, 255, 255)):
         # Add text to image (PIL-only)
         w, h = self.font.getsize(text)  # text width, height
