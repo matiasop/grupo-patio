@@ -1,9 +1,7 @@
 .vscode/
 
-yolov5.pt
-yolov5m.pt
 output.csv
 runs/
 
-test3.mp4
-test4.mp4
+*.mp4
+*.pt
