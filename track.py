@@ -295,11 +295,10 @@ def detect(opt):
                                                                bbox_top, bbox_w, bbox_h, -1, -1, -1, -1))
 
                 LOGGER.info(f'{s}Done. YOLO:({t3 - t2:.3f}s), DeepSort:({t5 - t4:.3f}s), total_personas_entran: {total_personas_entran}, total_autos_entran: {total_autos_entran}\n')
-                # LOGGER.info(f'entra: {entra_linea}, sale: {sale_linea}, objects_positions: {objects_positions}')
+
                 # Write output to file
-                with open('output.csv', 'w') as file:
-                    file.write(f"{data_dict[0]['entra']},{data_dict[0]['sale']}\n")
-                    file.write(f"{data_dict[2]['entra']},{data_dict[2]['sale']}\n")
+                with open('../frontend_Moris/frontend/output.csv', 'a') as file:
+                    file.write(f"{frame_idx},{data_dict[0]['entra']},{data_dict[0]['sale']},{data_dict[2]['entra']},{data_dict[2]['sale']}\n")
 
             else:
                 deepsort.increment_ages()
@@ -375,5 +374,8 @@ if __name__ == '__main__':
     opt = parser.parse_args()
     opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
 
+    # Create output file
+    with open('../frontend_Moris/frontend/output.csv', 'w') as file:
+        file.write("frame,p_in,p_out,c_in,c_out\n")
     with torch.no_grad():
         detect(opt)
