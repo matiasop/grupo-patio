@@ -140,20 +140,23 @@ def detect(opt):
         if "h" not in locals():
             h = im0s.shape[0]
             w = im0s.shape[1]
-            line_points = []
-            for person_line in lines["person"]:
-                lx1 = int(w * person_line["x1"])
-                ly1 = int(h * person_line["y1"])
-                lx2 = int(w * person_line["x2"])
-                ly2 = int(h * person_line["y2"])
-                line_dict = {
-                    "x1": lx1,
-                    "y1": ly1,
-                    "x2": lx2,
-                    "y2": ly2,
-                    "place": person_line["place"]
-                }
-                line_points.append(line_dict)
+            line_points = {}
+            for line_type in lines.keys():
+                line_points[line_type] = []
+                for line in lines[line_type]:
+                    lx1 = int(w * line["x1"])
+                    ly1 = int(h * line["y1"])
+                    lx2 = int(w * line["x2"])
+                    ly2 = int(h * line["y2"])
+                    place = line["place"]
+                    line_dict = {
+                        "x1": lx1,
+                        "y1": ly1,
+                        "x2": lx2,
+                        "y2": ly2,
+                        "place": place
+                    }
+                    line_points[line_type].append(line_dict)
         # ---------------------
 
         t1 = time_sync()
@@ -191,8 +194,10 @@ def detect(opt):
             annotator = Annotator(im0, line_width=2, pil=not ascii)
 
             # draw lines
-            for line in line_points:
-                annotator.line(line["x1"], line["y1"], line["x2"], line["y2"], count=total_personas_entran)
+            for line in line_points["person"]:
+                annotator.line(line["x1"], line["y1"], line["x2"], line["y2"], count=total_personas_entran, color=(0, 0, 255))
+            for line in line_points["car"]:
+                annotator.line(line["x1"], line["y1"], line["x2"], line["y2"], count=total_autos_entran, color=(255, 0, 0))
 
             if det is not None and len(det):
                 # Rescale boxes from img_size to im0 size
@@ -229,12 +234,18 @@ def detect(opt):
                         p_x = (output[0] + output[2]) / 2
                         p_y = (output[1] + output[3]) / 2
 
-                        # Draw object center point
-                        annotator.circle(int(p_x), int(p_y))
-
                         # Check if object crossed the lines
                         inside_area = True
-                        for line in line_points:
+                        # Person case
+                        if cls == 0:
+                            obj_class = "person"
+                            # Draw object center point red
+                            annotator.circle(int(p_x), int(p_y), color=(0, 0, 255))
+                        elif cls == 2:
+                            obj_class = "car"
+                            # Draw object center point blue
+                            annotator.circle(int(p_x), int(p_y), color=(255, 0, 0))
+                        for line in line_points[obj_class]:
                             lx1 = line["x1"]
                             lx2 = line["x2"]
                             ly1 = line["y1"]
@@ -255,7 +266,7 @@ def detect(opt):
 
                         if id in objects_positions:  # if id is in dict
                             # Tienen que pasar al menos n frames para que se considere que el objeto cambio de lado
-                            if frame_idx - objects_positions[id].frame > FRAMES_TO_SKIP: 
+                            if frame_idx - objects_positions[id].frame > FRAMES_TO_SKIP:
                                 if objects_positions[id].inside_area is False and inside_area is True:
                                     data_dict[cls]['entra'] += 1
                                     # entra_linea += 1
