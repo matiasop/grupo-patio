@@ -3,7 +3,6 @@
   <component name="ChangeListManager">
     <list default="true" id="37d829c6-0879-42a3-affc-7d774a3b9841" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/deep_sort/configs/deep_sort.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/deep_sort/configs/deep_sort.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/track.py" beforeDir="false" afterPath="$PROJECT_DIR$/track.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -77,7 +76,7 @@
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/track.py</url>
-          <line>204</line>
+          <line>200</line>
           <option name="timeStamp" value="22" />
         </line-breakpoint>
       </breakpoints>

@@ -59,10 +59,6 @@ def detect(opt):
         inside_enters = True
         if "inside_enters" in lines:
             inside_enters = lines.pop("inside_enters")
-    factor_enters = 1
-    if not inside_enters:
-        factor_enters = -1
-
 
     # initialize deepsort
     cfg = get_config()
@@ -274,11 +270,17 @@ def detect(opt):
                             # Tienen que pasar al menos n frames para que se considere que el objeto cambio de lado
                             if frame_idx - objects_positions[id].frame > FRAMES_TO_SKIP:
                                 if objects_positions[id].inside_area is False and inside_area is True:
-                                    data_dict[cls]['entra'] += factor_enters*1
-                                    # entra_linea += 1
+                                    if inside_enters:
+                                        data_dict[cls]['entra'] += 1
+                                    else:
+                                        data_dict[cls]['sale'] += 1
+                                        # entra_linea += 1
                                 elif objects_positions[id].inside_area is True and inside_area is False:
-                                    data_dict[cls]['sale'] += factor_enters*1
-                                    # sale_linea += 1
+                                    if inside_enters:
+                                        data_dict[cls]['sale'] += 1
+                                    else:
+                                        data_dict[cls]['entra'] += 1
+                                        # sale_linea += 1
                                 objects_positions[id] = LineData(inside_area, frame_idx)
                         else:
                             objects_positions[id] = LineData(inside_area, frame_idx)
