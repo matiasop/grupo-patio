@@ -59,6 +59,9 @@ def detect(opt):
         inside_enters = True
         if "inside_enters" in lines:
             inside_enters = lines.pop("inside_enters")
+    factor_enters = 1
+    if not inside_enters:
+        factor_enters = -1
 
 
     # initialize deepsort
@@ -271,19 +274,16 @@ def detect(opt):
                             # Tienen que pasar al menos n frames para que se considere que el objeto cambio de lado
                             if frame_idx - objects_positions[id].frame > FRAMES_TO_SKIP:
                                 if objects_positions[id].inside_area is False and inside_area is True:
-                                    data_dict[cls]['entra'] += 1
+                                    data_dict[cls]['entra'] += factor_enters*1
                                     # entra_linea += 1
                                 elif objects_positions[id].inside_area is True and inside_area is False:
-                                    data_dict[cls]['sale'] += 1
+                                    data_dict[cls]['sale'] += factor_enters*1
                                     # sale_linea += 1
                                 objects_positions[id] = LineData(inside_area, frame_idx)
                         else:
                             objects_positions[id] = LineData(inside_area, frame_idx)
-                        factor_enters = 1
-                        if not inside_enters:
-                            factor_enters = -1
-                        total_personas_entran = factor_enters * (data_dict[0]['entra'] - data_dict[0]['sale'])
-                        total_autos_entran = factor_enters * (data_dict[2]['entra'] - data_dict[2]['sale'])
+                        total_personas_entran = data_dict[0]['entra'] - data_dict[0]['sale']
+                        total_autos_entran = data_dict[2]['entra'] - data_dict[2]['sale']
 
                         label = f'{id} {names[c]} {conf:.2f} {top_or_bot}'
                         annotator.box_label(bboxes, label, color=colors(c, True))
