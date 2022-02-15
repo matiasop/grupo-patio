@@ -35,7 +35,7 @@ from deep_sort.deep_sort import DeepSort
 
 print(f"Setup complete. Using torch {torch.__version__} ({torch.cuda.get_device_properties(0).name if torch.cuda.is_available() else 'CPU'})")
 
-# sys.argv = ['track.py', '--source', 'test5.mp4', '--lines-src', 'test5-v2.json', '--classes', '0', '2', '--show-vid', "--conf-thres", "0.5"]
+sys.argv = ['track.py', '--source',  'VIDEO5.MP4', '--show-vid', '--lines-src', 'VIDEO5.json',  '--save-vid',  '--yolo_model',  'yolopavos7C.pt', '--classes',  '0',  '5']
 
 
 FILE = Path(__file__).resolve()
@@ -200,10 +200,11 @@ def detect(opt):
             annotator = Annotator(im0, line_width=2, pil=not ascii)
 
             # draw lines
-            for line in line_points["person"]:
-                annotator.line(line["x1"], line["y1"], line["x2"], line["y2"], count=total_personas_entran, color=(0, 0, 255))
-            for line in line_points["car"]:
-                annotator.line(line["x1"], line["y1"], line["x2"], line["y2"], count=total_autos_entran, color=(255, 0, 0))
+            counters = [total_personas_entran, total_autos_entran]
+            colors_list = [(0, 0, 255), (255, 0, 0)]
+            for count, identity in enumerate(lines.keys()):
+                for line in line_points[identity]:
+                    annotator.line(line["x1"], line["y1"], line["x2"], line["y2"], count=counters[count], color=colors_list[count])
 
             if det is not None and len(det):
                 # Rescale boxes from img_size to im0 size
@@ -263,9 +264,9 @@ def detect(opt):
 
                             top_or_bot = ''
                             if xp > 0:
-                                top_or_bot = 'TOP'
+                                top_or_bot = 'RIGHT'
                             elif xp < 0:
-                                top_or_bot = 'BOT'
+                                top_or_bot = 'LEFT'
                             if top_or_bot != line["place"]: # If it is outside the area, it stops evaluating other lines
                                 inside_area = False
                                 break
