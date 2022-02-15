@@ -131,9 +131,9 @@ def detect(opt):
     objects_positions = {}
     LineData =  namedtuple('LineData', ['inside_area', 'frame'])
     # Diccionario con la cantidad de personas (clase 0) y autos (clase 2) que han entrado y salido al area
-    data_dict = {0: {'entra': 0, 'sale': 0}, 2: {'entra': 0, 'sale': 0}}
-    total_personas_entran = 0
-    total_autos_entran = 0
+    data_dict = {0: {'entra': 0, 'sale': 0}, 5: {'entra': 0, 'sale': 0}}
+    total_cuerpos_sanos_entran = 0
+    total_ematomas_entran = 0
     FRAMES_TO_SKIP = 5
     # ---------------------
     for frame_idx, (path, img, im0s, vid_cap, s) in enumerate(dataset):
@@ -200,7 +200,7 @@ def detect(opt):
             annotator = Annotator(im0, line_width=2, pil=not ascii)
 
             # draw lines
-            counters = [total_personas_entran, total_autos_entran]
+            counters = [total_cuerpos_sanos_entran, total_ematomas_entran]
             colors_list = [(0, 0, 255), (255, 0, 0)]
             for count, identity in enumerate(lines.keys()):
                 for line in line_points[identity]:
@@ -245,11 +245,11 @@ def detect(opt):
                         inside_area = True
                         # Person case
                         if cls == 0:
-                            obj_class = "person"
+                            obj_class = "cuerpo sano"
                             # Draw object center point red
                             annotator.circle(int(p_x), int(p_y), color=(0, 0, 255))
-                        elif cls == 2:
-                            obj_class = "car"
+                        elif cls == 5:
+                            obj_class = "ematoma"
                             # Draw object center point blue
                             annotator.circle(int(p_x), int(p_y), color=(255, 0, 0))
                         for line in line_points[obj_class]:
@@ -264,9 +264,9 @@ def detect(opt):
 
                             top_or_bot = ''
                             if xp > 0:
-                                top_or_bot = 'RIGHT'
+                                top_or_bot = 'TOP'
                             elif xp < 0:
-                                top_or_bot = 'LEFT'
+                                top_or_bot = 'BOT'
                             if top_or_bot != line["place"]: # If it is outside the area, it stops evaluating other lines
                                 inside_area = False
                                 break
@@ -289,10 +289,13 @@ def detect(opt):
                                 objects_positions[id] = LineData(inside_area, frame_idx)
                         else:
                             objects_positions[id] = LineData(inside_area, frame_idx)
-                        total_personas_entran = data_dict[0]['entra'] - data_dict[0]['sale']
-                        total_autos_entran = data_dict[2]['entra'] - data_dict[2]['sale']
-
-                        label = f'{id} {names[c]} {conf:.2f} {top_or_bot}'
+                        total_cuerpos_sanos_entran = data_dict[0]['entra'] - data_dict[0]['sale']
+                        total_ematomas_entran = data_dict[5]['entra'] - data_dict[5]['sale']
+                        pos_label = {
+                            'BOT': 'lEFT',
+                            'TOP': 'RIGHT'
+                        }
+                        label = f'{id} {names[c]} {conf:.2f} {pos_label[top_or_bot]}'
                         annotator.box_label(bboxes, label, color=colors(c, True))
 
                         if save_txt:
@@ -306,11 +309,11 @@ def detect(opt):
                                 f.write(('%g ' * 10 + '\n') % (frame_idx + 1, id, bbox_left,  # MOT format
                                                                bbox_top, bbox_w, bbox_h, -1, -1, -1, -1))
 
-                LOGGER.info(f'{s}Done. YOLO:({t3 - t2:.3f}s), DeepSort:({t5 - t4:.3f}s), total_personas_entran: {total_personas_entran}, total_autos_entran: {total_autos_entran}\n')
+                LOGGER.info(f'{s}Done. YOLO:({t3 - t2:.3f}s), DeepSort:({t5 - t4:.3f}s), total_cuerpos_sanos_entran: {total_cuerpos_sanos_entran}, total_ematomas_entran: {total_ematomas_entran}\n')
 
                 # Write output to file
                 with open('../frontend_Moris/frontend/output.csv', 'a') as file:
-                    file.write(f"{frame_idx},{data_dict[0]['entra']},{data_dict[0]['sale']},{data_dict[2]['entra']},{data_dict[2]['sale']}\n")
+                    file.write(f"{frame_idx},{data_dict[0]['entra']},{data_dict[0]['sale']},{data_dict[5]['entra']},{data_dict[5]['sale']}\n")
 
             else:
                 deepsort.increment_ages()
