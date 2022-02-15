@@ -35,7 +35,7 @@ from deep_sort.deep_sort import DeepSort
 
 print(f"Setup complete. Using torch {torch.__version__} ({torch.cuda.get_device_properties(0).name if torch.cuda.is_available() else 'CPU'})")
 
-# sys.argv = ['track.py', '--source', 'test4.mp4', '--lines-src', 'test4-v2.json', '--classes', '0', '2', '--show-vid', "--conf-thres", "0.5"]
+# sys.argv = ['track.py', '--source', 'test5.mp4', '--lines-src', 'test5-v2.json', '--classes', '0', '2', '--show-vid', "--conf-thres", "0.5"]
 
 
 FILE = Path(__file__).resolve()
@@ -140,8 +140,12 @@ def detect(opt):
         # ---------------------
         # draw lines to pass
         if "h" not in locals():
-            h = im0s.shape[0]
-            w = im0s.shape[1]
+            if "youtube" in source:
+                h = im0s[0].shape[0]
+                w = im0s[0].shape[1]
+            else:
+                h = im0s.shape[0]
+                w = im0s.shape[1]
             line_points = {}
             for line_type in lines.keys():
                 line_points[line_type] = []
